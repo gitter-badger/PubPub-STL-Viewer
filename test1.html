@@ -1,0 +1,325 @@
+
+<html>
+<head>
+	<title>PubPub STL Viewer</title>
+</head>
+<body>
+<script src="http://threejs.org/build/three.min.js"></script>
+<script type="text/javascript" src="OrbitControls.js"></script>
+<script type="text/javascript" src="STLLoader.js"></script>
+<script type="text/javascript" src="stats.js"></script>
+<script type="text/javascript" src="TrackballControls.js"></script>
+<script type="text/javascript" src="dat.gui.min.js"></script>>
+<script>
+			var container, stats;
+			function setupGUI(){
+				var gui = new dat.GUI();
+		
+				var parameters = 
+				{
+					a: 200, // numeric
+					b: 200, // numeric slider
+					c: "Hello, GUI!", // string
+					d: false, // boolean (checkbox)
+					e: "#ff8800", // color (hex)
+					f: function() { alert("Hello!") },
+					g: function() { alert( parameters.c ) },
+					v : 0,    // dummy value, only type is important
+					w: "...", // dummy value, only type is important
+					x: 0, y: 0, z: 0
+				};
+				// gui.add( parameters )
+				gui.add( parameters, 'a' ).name('Number');
+				gui.add( parameters, 'b' ).min(128).max(256).step(16).name('Slider');
+				gui.add( parameters, 'c' ).name('String');
+				gui.add( parameters, 'd' ).name('Boolean');
+				
+				gui.addColor( parameters, 'e' ).name('Color');
+				
+				var numberList = [1, 2, 3];
+				gui.add( parameters, 'v', numberList ).name('List');
+				
+				var stringList = ["One", "Two", "Three"];
+				gui.add( parameters, 'w', stringList ).name('List');
+				
+				gui.add( parameters, 'f' ).name('Say "Hello!"');
+				gui.add( parameters, 'g' ).name("Alert Message");
+				
+				var folder1 = gui.addFolder('Coordinates');
+				folder1.add( parameters, 'x' );
+				folder1.add( parameters, 'y' );
+				folder1.close();
+				gui.open();
+			
+			};
+			var camera, cameraTarget, scene, renderer, controls, tplane;
+
+			var objects = [];
+			var raycaster = new THREE.Raycaster();
+			var mouse = new THREE.Vector2(),
+			offset = new THREE.Vector3(),
+			INTERSECTED, SELECTED;
+
+			init();
+			animate();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 35, window.innerWidth / window.innerHeight, 1, 15 );
+				camera.position.set( 3, 0.15, 3 );
+
+				cameraTarget = new THREE.Vector3( 0, -0.25, 0 );
+
+				controls = new THREE.TrackballControls( camera );
+				controls.rotateSpeed = 1.0;
+				controls.zoomSpeed = 1.2;
+				controls.panSpeed = 0.8;
+				controls.noZoom = false;
+				controls.noPan = false;
+				controls.staticMoving = true;
+				controls.dynamicDampingFactor = 0.3;
+
+
+				scene = new THREE.Scene();
+				scene.fog = new THREE.Fog( 0x000000, 2, 15 );
+
+
+				// Ground
+
+				var plane = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry( 40, 40 ),
+					new THREE.MeshPhongMaterial( { color: 0x000000, s: 0x009999 } )
+				);
+				plane.rotation.x = -Math.PI/2;
+				plane.position.y = -0.5;
+				scene.add( plane );
+
+				plane.receiveShadow = true;
+
+
+
+				// ASCII file
+
+				var loader = new THREE.STLLoader();
+				loader.load( 'ElectronicSpoon_Handle.stl', function ( geometry ) {
+
+					var material = new THREE.MeshPhongMaterial( { color: 0x2194ce, specular: 0x111111, shininess: 200 } );
+					var mesh = new THREE.Mesh( geometry, material );
+
+					mesh.position.set( .5, -.25 , -.25 );
+					mesh.rotation.set( 0, - Math.PI / 2, 0 );
+					mesh.scale.set( .01, .01, .01 );
+
+					mesh.castShadow = true;
+					mesh.receiveShadow = true;
+					objects = [mesh];
+
+					scene.add( mesh );
+
+				} );
+
+
+				tplane = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry( 2000, 2000, 8, 8 ),
+					new THREE.MeshBasicMaterial( { color: 0x000000, opacity: 0.25, transparent: true } )
+				);
+				tplane.visible = false;
+				scene.add( tplane );
+
+				// Lights
+
+				scene.add( new THREE.AmbientLight( 0x777777 ) );
+
+				addShadowedLight( 1, 1, 1, 0xffffff, 1.35 );
+				addShadowedLight( 0.5, 1, -1, 0xffaa00, 1 );
+
+				// renderer
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setClearColor( scene.fog.color );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				renderer.gammaInput = true;
+				renderer.gammaOutput = true;
+
+				renderer.shadowMapEnabled = true;
+				renderer.shadowMapCullFace = THREE.CullFaceBack;
+
+				renderer.domElement.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				renderer.domElement.addEventListener( 'mousedown', onDocumentMouseDown, false );
+				renderer.domElement.addEventListener( 'mouseup', onDocumentMouseUp, false );
+
+
+				container.appendChild( renderer.domElement );
+
+				// stats
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				container.appendChild( stats.domElement );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+				setupGUI();
+
+			}
+
+			function addShadowedLight( x, y, z, color, intensity ) {
+
+				var directionalLight = new THREE.DirectionalLight( color, intensity );
+				directionalLight.position.set( x, y, z )
+				scene.add( directionalLight );
+
+				directionalLight.castShadow = true;
+				// directionalLight.shadowCameraVisible = true;
+
+				var d = 1;
+				directionalLight.shadowCameraLeft = -d;
+				directionalLight.shadowCameraRight = d;
+				directionalLight.shadowCameraTop = d;
+				directionalLight.shadowCameraBottom = -d;
+
+				directionalLight.shadowCameraNear = 1;
+				directionalLight.shadowCameraFar = 4;
+
+				directionalLight.shadowMapWidth = 1024;
+				directionalLight.shadowMapHeight = 1024;
+
+				directionalLight.shadowBias = -0.005;
+				directionalLight.shadowDarkness = 0.15;
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				event.preventDefault();
+
+				mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+				mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+				//
+
+				raycaster.setFromCamera( mouse, camera );
+
+				if ( SELECTED ) {
+
+					var intersects = raycaster.intersectObject( tplane );
+					SELECTED.position.copy( intersects[ 0 ].point.sub( offset ) );
+					return;
+
+				}
+
+				var intersects = raycaster.intersectObjects( objects );
+
+				if ( intersects.length > 0 ) {
+
+					if ( INTERSECTED != intersects[ 0 ].object ) {
+
+						if ( INTERSECTED ) INTERSECTED.material.color.setHex( INTERSECTED.currentHex );
+
+						INTERSECTED = intersects[ 0 ].object;
+						INTERSECTED.currentHex = INTERSECTED.material.color.getHex();
+
+						tplane.position.copy( INTERSECTED.position );
+						tplane.lookAt( camera.position );
+
+					}
+
+					container.style.cursor = 'pointer';
+
+				} else {
+
+					if ( INTERSECTED ) INTERSECTED.material.color.setHex( INTERSECTED.currentHex );
+
+					INTERSECTED = null;
+
+					container.style.cursor = 'auto';
+
+				}
+
+			}
+
+			function onDocumentMouseDown( event ) {
+
+				event.preventDefault();
+
+				var vector = new THREE.Vector3( mouse.x, mouse.y, 0.5 ).unproject( camera );
+
+				var raycaster = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
+
+				var intersects = raycaster.intersectObjects( objects );
+
+				if ( intersects.length > 0 ) {
+
+					controls.enabled = false;
+
+					SELECTED = intersects[ 0 ].object;
+
+					var intersects = raycaster.intersectObject(tplane );
+					offset.copy( intersects[ 0 ].point ).sub( tplane.position );
+
+					container.style.cursor = 'move';
+
+				}
+
+			}
+
+			function onDocumentMouseUp( event ) {
+
+				event.preventDefault();
+
+				controls.enabled = true;
+
+				if ( INTERSECTED ) {
+
+					tplane.position.copy( INTERSECTED.position );
+
+					SELECTED = null;
+
+				}
+
+				container.style.cursor = 'auto';
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				var timer = Date.now() * 0.0005;
+
+				//camera.position.x = Math.cos( timer ) * 3;
+				//camera.position.z = Math.sin( timer ) * 3;
+
+				camera.lookAt( cameraTarget );
+
+				renderer.render( scene, camera );
+
+			}
+
+</script>
+</body>
+</html>

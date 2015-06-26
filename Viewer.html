@@ -1,0 +1,100 @@
+<html>
+  <head>
+    <title>PubPub STL Viewer</title>
+    <style>
+      body { margin: 0; }
+      canvas { width: 100%; height: 100% }
+    </style>
+  </head>
+  <body>
+    <script src="http://threejs.org/build/three.min.js"></script>
+    <script type="text/javascript" src="OrbitControls.js"></script>
+    <script type="text/javascript" src="STLLoader.js"></script>
+    <script>
+var container, stats;
+
+var camera, camcontrols, scene, renderer, lcontrols, camlight;
+
+var cross;
+
+var loader
+
+init();
+animate();
+
+function init() {
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.position.z = 1000;
+
+  camcontrols = new THREE.OrbitControls(camera);
+  camcontrols.addEventListener('change', render);
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0xcccccc, 1000);
+
+  // world
+  var material = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    shading: THREE.FlatShading
+  });
+
+  loader = new THREE.STLLoader;
+  loader.load( 'ElectronicSpoon_Handle.stl', function ( geometry ) {
+          mesh = new THREE.Mesh(geometry, material );
+          scene.add( mesh);
+
+        });
+
+  // lights
+
+  camlight = new THREE.PointLight(0xffffff,1,1000);
+  camlight.position.set(0, 0, 200);
+  scene.add(camlight);
+
+  lcontrols = new THREE.OrbitControls(camlight);
+  lcontrols.addEventListener('change',render);
+
+  light = new THREE.AmbientLight(0x222222);
+  scene.add(light);
+
+  // renderer
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: false
+  });
+  renderer.setClearColor(scene.fog.color, 1);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  container = document.body;
+  container.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', onWindowResize, false);
+
+}
+
+function onWindowResize() {
+
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  render();
+
+}
+
+function animate() {
+
+  requestAnimationFrame(animate);
+  camcontrols.update();
+  lcontrols.update();
+}
+
+function render() {
+  renderer.render(scene, camera);
+}
+
+    </script>
+  </body>
+</html>
